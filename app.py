@@ -24,58 +24,12 @@ st.markdown("""
         max-width: 1200px;
     }
     
-    /* OVERRIDE WARNA VERSI DARK MODE (Hitam Harmonis & Kuning Stabilo) */
-    @media (prefers-color-scheme: dark) {
-        .stApp {
-            background-color: #11131E !important; /* Hitam tidak terlalu pekat */
-            color: #FAFAFA !important;
-        }
-        
-        /* Mempercantik kartu metrik dengan aksen Kuning Stabilo */
-        div[data-testid="metric-container"] {
-            background-color: #1A1D2C !important;
-            border: 1px solid #33354A !important;
-            border-left: 5px solid #CCFF00 !important; /* Kuning Stabilo */
-            padding: 12px 18px;
-            border-radius: 10px;
-            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.25);
-        }
-        
-        /* Mengubah warna font label metrik agar kontras */
-        div[data-testid="stMetricLabel"] {
-            color: #8A8D93 !important;
-        }
-        
-        /* Desain tombol utama Kuning Stabilo */
-        div.stButton > button:first-child {
-            background-color: #CCFF00 !important; /* Kuning Stabilo */
-            color: #0B0C13 !important; /* Teks gelap harmonis */
-            font-weight: 800;
-            border-radius: 8px;
-            border: none;
-            padding: 12px 24px;
-            width: 100%;
-            transition: all 0.3s ease;
-            box-shadow: 0px 4px 12px rgba(204, 255, 0, 0.2);
-            letter-spacing: 0.05em;
-        }
-        
-        div.stButton > button:first-child:hover {
-            background-color: #DDFF33 !important;
-            transform: translateY(-2px);
-            box-shadow: 0px 6px 18px rgba(204, 255, 0, 0.4);
-        }
-        
-        /* Warna teks judul utama */
-        .main-title {
-            color: #FAFAFA;
-        }
-        
-        /* Garis putus-putus box watermark panel kosong */
-        .placeholder-box {
-            border: 2px dashed #33354A !important;
-            background-color: rgba(26, 29, 44, 0.4) !important;
-        }
+    /* Mempercantik kartu metrik dengan transparansi agar serasi di Light & Dark Mode */
+    div[data-testid="metric-container"] {
+        border: 1px solid rgba(128, 128, 128, 0.2);
+        padding: 12px 18px;
+        border-radius: 10px;
+        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.05);
     }
     
     /* STYLE KELAS UMUM */
@@ -86,9 +40,9 @@ st.markdown("""
         letter-spacing: -0.03em;
     }
     .sub-title {
-        color: #8A8D93;
         font-size: 1.05rem;
         margin-bottom: 25px;
+        opacity: 0.7; /* Menggunakan opacity agar warna otomatis beradaptasi dengan mode gelap/terang */
     }
     </style>
 """, unsafe_allow_html=True)
@@ -206,17 +160,18 @@ if img_file_buffers:
                             grade_result = grade_card(img_bgr)
                             label = CLASS_NAMES[prediction]
                             
+                            # Banner direvisi agar serasi di background putih maupun hitam
                             if label == "REAL":
                                 st.markdown(
-                                    f"""<div style="background:rgba(61, 255, 160, 0.08); border:1px solid #3dffa0; padding:12px; border-radius:8px; text-align:center; margin-bottom:15px;">
-                                        <h3 style="color:#3dffa0; margin:0; font-size:1.3rem;">✅ KARTU ASLI (REAL)</h3>
-                                        <p style="color:#E8EAF0; margin:0; font-size:0.85rem; opacity:0.85;">Confidence Level: {confidence:.1f}%</p>
+                                    f"""<div style="background:rgba(46, 204, 113, 0.15); border:2px solid #2ecc71; padding:12px; border-radius:8px; text-align:center; margin-bottom:15px;">
+                                        <h3 style="color:#27ae60; margin:0; font-size:1.3rem;">✅ KARTU ASLI (REAL)</h3>
+                                        <p style="margin:0; font-size:0.85rem; opacity:0.85;">Confidence Level: {confidence:.1f}%</p>
                                     </div>""", unsafe_allow_html=True)
                             else:
                                 st.markdown(
-                                    f"""<div style="background:rgba(255, 79, 109, 0.08); border:1px solid #ff4f6d; padding:12px; border-radius:8px; text-align:center; margin-bottom:15px;">
-                                        <h3 style="color:#ff4f6d; margin:0; font-size:1.3rem;">🚨 KARTU PALSU (FAKE)</h3>
-                                        <p style="color:#E8EAF0; margin:0; font-size:0.85rem; opacity:0.85;">Confidence Level: {confidence:.1f}%</p>
+                                    f"""<div style="background:rgba(231, 76, 60, 0.15); border:2px solid #e74c3c; padding:12px; border-radius:8px; text-align:center; margin-bottom:15px;">
+                                        <h3 style="color:#c0392b; margin:0; font-size:1.3rem;">🚨 KARTU PALSU (FAKE)</h3>
+                                        <p style="margin:0; font-size:0.85rem; opacity:0.85;">Confidence Level: {confidence:.1f}%</p>
                                     </div>""", unsafe_allow_html=True)
 
                             t1, t2 = st.tabs(["🌟 Hasil Kondisi Fisik", "📈 Metrik Model AI"])
@@ -244,12 +199,12 @@ if img_file_buffers:
             st.toast("Seluruh gambar selesai dianalisis!", icon="🎉")
         else:
             st.markdown("""
-                <div class="placeholder-box" style="text-align: center; padding: 50px 20px; margin-top: 20px; border: 2px dashed #252a42; border-radius: 12px; background-color: rgba(20, 23, 38, 0.5);">
+                <div style="text-align: center; padding: 50px 20px; margin-top: 20px; border: 2px dashed rgba(128,128,128,0.3); border-radius: 12px; background-color: rgba(128,128,128,0.05);">
                     <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Pok%C3%A9_Ball_icon.svg" 
                         width="110" 
                         style="opacity: 0.35; margin-bottom: 15px;"/>
-                    <h5 style="color: #5c6388; font-weight: 600; margin-bottom: 5px;">Sistem PokéScan Siap</h5>
-                    <p style="color: #5c6388; font-size: 0.85rem; max-width: 320px; margin: 0 auto;">
+                    <h5 style="font-weight: 600; margin-bottom: 5px;">Sistem PokéScan Siap</h5>
+                    <p style="font-size: 0.85rem; max-width: 320px; margin: 0 auto; opacity: 0.7;">
                         Silakan tekan tombol di atas untuk memulai kalkulasi ekstraksi fitur dan grading fisik kartu secara bersamaan.
                     </p>
                 </div>
@@ -262,8 +217,8 @@ else:
             <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Pok%C3%A9_Ball_icon.svg" 
                 width="130" 
                 style="opacity: 0.15; margin-bottom: 20px;"/>
-            <h4 style="color: #5c6388; font-weight: 500;">Menunggu Input Gambar Kartu</h4>
-            <p style="color: #43496a; font-size: 0.9rem;">
+            <h4 style="font-weight: 500; opacity: 0.8;">Menunggu Input Gambar Kartu</h4>
+            <p style="font-size: 0.9rem; opacity: 0.7;">
                 Silakan gunakan menu di <b>Sidebar kiri</b> untuk memilih mengunggah file gambar (maksimal 10) atau mengaktifkan kamera device Anda.
             </p>
         </div>
