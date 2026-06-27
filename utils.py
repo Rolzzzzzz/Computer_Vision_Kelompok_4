@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import matplotlib
-matplotlib.use("Agg")   # non-interactive backend (save to file)
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import cv2
@@ -29,7 +29,6 @@ def load_model(model_dir: str, prefix: str = "pokemon_svm"):
     model = joblib.load(model_path)
     pipeline = joblib.load(scaler_path)
 
-    # backward compat: kalau pkl lama isinya cuma scaler (bukan dict)
     if not isinstance(pipeline, dict):
         pipeline = {"scaler": pipeline, "pca": None}
 
