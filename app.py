@@ -47,16 +47,33 @@ def init_model():
     MODEL_DIR = os.path.join(BASE_DIR, "models")
     try:
         model, pipeline = load_model(MODEL_DIR)
-        import numpy as _np
         scaler = pipeline["scaler"]
         pca    = pipeline.get("pca")
-        X_test = _np.zeros((2, scaler.n_features_in_), dtype=_np.float32)
-        X_test[1] = 1.0
-        X_sc = scaler.transform(X_test)
+
+        # PERBAIKAN: cek lama hanya membandingkan 2 vektor ekstrem (nol vs satu),
+        # yang ternyata tetap "lolos" walau model sebenarnya rusak (decision
+        # function jatuh ke nilai bias/intercept untuk hampir semua input nyata).
+        # Cek baru ini mensimulasikan beberapa kemungkinan gambar (di sekitar
+        # rata-rata & skala fitur asli dari scaler) lalu memeriksa apakah
+        # decision_function benar-benar BERVARIASI antar input yang berbeda.
+        # Kalau variasinya sangat kecil, model dianggap tidak bisa membedakan
+        # input apa pun (model "buta") dan sistem otomatis pindah ke Visual Analyzer.
+        rng = np.random.RandomState(42)
+        n_features = scaler.n_features_in_
+        means = scaler.mean_
+        scales = scaler.scale_
+        probe_samples = []
+        for _ in range(10):
+            noise_scale = rng.uniform(0.5, 3.0)
+            probe_samples.append(means + rng.normal(size=n_features) * scales * noise_scale)
+        X_probe = np.array(probe_samples, dtype=np.float64)
+
+        X_sc = scaler.transform(X_probe)
         if pca is not None:
             X_sc = pca.transform(X_sc)
         df = model.decision_function(X_sc)
-        model_ok = abs(df[0] - df[1]) > 1e-6
+
+        model_ok = bool(np.std(df) > 0.05)
         return model, pipeline, True, model_ok
     except Exception:
         return None, None, False, False
@@ -140,9 +157,11 @@ if img_file_buffers:
                                 st.error("Gagal memproses gambar.")
                                 continue
 
+                            # ─── AUTENTIKASI ───────────────────────────────
                             use_visual = (not MODEL_LOADED) or (not MODEL_OK)
 
                             if use_visual:
+                                # Pakai visual-based analyzer
                                 auth = analyze_authenticity(img_bgr)
                                 prediction  = auth["prediction"]
                                 confidence  = auth["confidence"] * 100
@@ -150,6 +169,7 @@ if img_file_buffers:
                                 proba_fake  = 1.0 - proba_real
                                 method_note = "Visual Analyzer"
                             else:
+                                # Pakai SVM
                                 features = extract_all_features(img_color, img_gray)
                                 scaler   = pipeline["scaler"]
                                 pca      = pipeline.get("pca")
@@ -166,8 +186,12 @@ if img_file_buffers:
 
                             label = CLASS_NAMES[prediction]
 
+                            # ─── GRADE ────────────────────────────────────
                             grade_result = grade_card(img_bgr)
 
+                            # ═══════════════════════════════════════════════
+                            # SECTION 1: AUTENTIKASI
+                            # ═══════════════════════════════════════════════
                             st.markdown(f"<p class='section-header'>🔐 Autentikasi Kartu <span style='font-weight:400;font-size:0.8rem;opacity:0.6;'>({method_note})</span></p>", unsafe_allow_html=True)
 
                             if label == "REAL":
@@ -202,16 +226,19 @@ if img_file_buffers:
                                     d7.metric("Halftone",      f"{auth_details['halftone']:.1f}")
                                     d8.metric("Border",        f"{auth_details['border']:.1f}")
                                     st.caption(f"🔬 Raw: sharpness_lap={auth_details['sharpness_raw']:.1f}, "
-                                            f"sat_mean={auth_details['sat_mean']:.1f}, "
-                                            f"noise_std={auth_details['noise_std']:.2f}, "
-                                            f"lbp_entropy={auth_details['lbp_entropy']:.3f}, "
-                                            f"halftone_energy={auth_details['halftone_energy']:.4f}")
+                                               f"sat_mean={auth_details['sat_mean']:.1f}, "
+                                               f"noise_std={auth_details['noise_std']:.2f}, "
+                                               f"lbp_entropy={auth_details['lbp_entropy']:.3f}, "
+                                               f"halftone_energy={auth_details['halftone_energy']:.4f}")
                                 else:
                                     st.write(f"P(REAL): **{proba_real*100:.1f}%**"); st.progress(proba_real)
                                     st.write(f"P(FAKE): **{proba_fake*100:.1f}%**"); st.progress(proba_fake)
 
                             st.markdown("---")
 
+                            # ═══════════════════════════════════════════════
+                            # SECTION 2: GRADING
+                            # ═══════════════════════════════════════════════
                             st.markdown("<p class='section-header'>🌟 Grading Kondisi Fisik Kartu</p>", unsafe_allow_html=True)
 
                             grade_label = grade_result["grade"]
@@ -236,12 +263,12 @@ if img_file_buffers:
                             elif centering_note == "no_card_detected": c_delta = "Kartu tidak terdeteksi"
 
                             m1.metric("Centering (40%)", f"{centering_score:.1f}",
-                                    delta=c_delta, delta_color="off" if c_delta else "normal",
-                                    help="Simetri border kiri-kanan dan atas-bawah.")
+                                      delta=c_delta, delta_color="off" if c_delta else "normal",
+                                      help="Simetri border kiri-kanan dan atas-bawah.")
                             m2.metric("Corners (35%)", f"{grade_result['corners']['score']:.1f}",
-                                    help="Kondisi sudut kartu.")
+                                      help="Kondisi sudut kartu.")
                             m3.metric("Edge Wear (25%)", f"{grade_result['edge_wear']['score']:.1f}",
-                                    help="Kondisi tepi kartu.")
+                                      help="Kondisi tepi kartu.")
 
                             with st.expander("📐 Detail Centering Border", expanded=False):
                                 c1, c2 = st.columns(2)
