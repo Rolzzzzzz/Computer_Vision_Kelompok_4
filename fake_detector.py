@@ -96,6 +96,47 @@ def _border_regularity(img_bgr: np.ndarray) -> float:
     score = max(0.0, 100.0 - avg_std * 1.5)
     return float(score)
 
+def _detect_mirrored_text(img_bgr: np.ndarray) -> float:
+    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+
+    flipped_h = cv2.flip(gray, 1)
+    diff_h = cv2.absdiff(gray, flipped_h).astype(np.float32)
+    sym_h = 1.0 - (diff_h.mean() / 128.0)  # 1.0 = perfect mirror
+
+    flipped_v = cv2.flip(gray, 0)
+    diff_v = cv2.absdiff(gray, flipped_v).astype(np.float32)
+    sym_v = 1.0 - (diff_v.mean() / 128.0)
+    hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+    h_ch = hsv[:, :, 0]
+    purple_mask = ((h_ch >= 120) & (h_ch <= 160)).astype(np.float32)
+    blue_mask   = ((h_ch >= 90)  & (h_ch <= 130)).astype(np.float32)
+    purple_blue_ratio = (purple_mask.sum() + blue_mask.sum()) / h_ch.size
+    mirror_suspicion = 0.0
+    if sym_h > 0.75 and purple_blue_ratio > 0.30:
+        mirror_suspicion = min(100.0, (sym_h - 0.75) / 0.25 * 80.0)
+    elif sym_v > 0.75 and purple_blue_ratio > 0.25:
+        mirror_suspicion = min(100.0, (sym_v - 0.75) / 0.25 * 60.0)
+
+    return float(mirror_suspicion)
+
+
+def _detect_solid_or_uniform_color(img_bgr: np.ndarray) -> float:
+    hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV).astype(np.float32)
+    sat_std = hsv[:, :, 1].std()
+    val_std = hsv[:, :, 2].std()
+    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    lap_var = cv2.Laplacian(gray, cv2.CV_32F).var()
+    suspicion = 0.0
+    if sat_std < 20 and lap_var < 100:
+        suspicion = 90.0
+    elif sat_std < 35 and lap_var < 200:
+        suspicion = 60.0
+    elif sat_std < 50 and lap_var < 400:
+        suspicion = 30.0
+
+    return float(suspicion)
+
+
 def analyze_authenticity(img_bgr: np.ndarray) -> dict:
     target_size = (300, 420)
     img = cv2.resize(img_bgr, target_size, interpolation=cv2.INTER_AREA)
@@ -109,6 +150,8 @@ def analyze_authenticity(img_bgr: np.ndarray) -> dict:
     lbp_entropy    = _lbp_uniformity(gray)
     halftone       = _halftone_regularity(gray)
     border_reg     = _border_regularity(img)
+    mirror_suspicion = _detect_mirrored_text(img)
+    solid_suspicion  = _detect_solid_or_uniform_color(img)
 
     sharp_score = min(100.0, max(0.0, (sharpness - 50) / (800 - 50) * 100))
 
@@ -182,6 +225,15 @@ def analyze_authenticity(img_bgr: np.ndarray) -> dict:
     }
     total = sum(weights[k] * scores[k] for k in weights)
     score_real = round(total, 1)
+    if solid_suspicion >= 60.0:
+        score_real = min(score_real, 30.0)
+    if mirror_suspicion >= 50.0:
+        score_real = min(score_real, 35.0)
+    elif mirror_suspicion >= 25.0:
+        penalty = mirror_suspicion * 0.3
+        score_real = max(0.0, score_real - penalty)
+
+    score_real = round(score_real, 1)
 
     THRESHOLD = 55.0
     prediction = 0 if score_real >= THRESHOLD else 1
@@ -193,6 +245,8 @@ def analyze_authenticity(img_bgr: np.ndarray) -> dict:
         "confidence":  confidence,
         "score_real":  score_real,
         "threshold":   THRESHOLD,
+        "mirror_suspicion": round(mirror_suspicion, 1),
+        "solid_suspicion":  round(solid_suspicion, 1),
         "details": {
             "sharpness_raw":    round(sharpness, 2),
             "print_quality_raw": round(print_quality, 2),
