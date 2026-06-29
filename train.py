@@ -21,14 +21,6 @@ MODEL_DIR = os.path.join(BASE_DIR, "models")
 RESULTS_DIR = os.path.join(BASE_DIR, "results")
 
 CLASS_NAMES = ["Real", "Fake"]
-
-# PERBAIKAN: C dan gamma sebelumnya di-hardcode (C=10, gamma="scale") tanpa
-# divalidasi. Pada feature space berdimensi tinggi, gamma="scale" sangat
-# rentan membuat kernel RBF "vanish" untuk data baru yang sedikit berbeda
-# dari training set -> decision_function selalu jatuh ke nilai bias/intercept
-# (model jadi buta terhadap input, walau kelihatan "jalan normal").
-# Sekarang nilai-nilai ini dicari otomatis lewat cross-validation supaya
-# kombinasi yang benar-benar bisa generalisasi yang dipilih, bukan ditebak.
 SVM_PARAM_GRID = [
     {"kernel": ["rbf"], "C": [0.1, 1, 10, 100], "gamma": ["scale", "auto", 0.01, 0.001, 0.0001]},
     {"kernel": ["linear"], "C": [0.1, 1, 10, 100]},
@@ -36,13 +28,7 @@ SVM_PARAM_GRID = [
 
 USE_PCA = True
 PCA_VARIANCE = 0.95
-# PERBAIKAN: sebelumnya PCA hanya dibatasi target variance (0.95) tanpa batas
-# atas jumlah komponen. Pada dataset kecil, ini bisa menghasilkan PCA dengan
-# komponen yang jumlahnya mendekati (atau lebih besar dari) jumlah sampel
-# training itu sendiri -> SVM overfit parah & tidak generalisasi ke gambar
-# baru. PCA_MAX_COMPONENTS membatasi jumlah komponen secara proporsional
-# terhadap jumlah data training yang sebenarnya tersedia.
-PCA_MAX_COMPONENTS_RATIO = 1 / 3   # maksimum ~1/3 dari jumlah sampel training
+PCA_MAX_COMPONENTS_RATIO = 1 / 3
 PCA_MAX_COMPONENTS_HARD_CAP = 120
 RANDOM_STATE = 42
 
@@ -94,11 +80,6 @@ def main():
         pca_probe = PCA(n_components=PCA_VARIANCE, random_state=RANDOM_STATE)
         pca_probe.fit(X_train_scaled)
         n_components = pca_probe.n_components_
-
-        # PERBAIKAN: batasi jumlah komponen PCA relatif terhadap jumlah
-        # sampel training, supaya dimensi fitur akhir tidak jauh lebih besar
-        # daripada jumlah data yang ada (penyebab utama model "menghafal"
-        # training set lalu buta terhadap gambar baru).
         n_components_cap = max(
             2,
             min(
@@ -109,13 +90,13 @@ def main():
         )
         if n_components_cap < n_components:
             print(f"  [!] PCA awal butuh {n_components} komponen untuk variance={PCA_VARIANCE}, "
-                  f"tapi itu terlalu besar dibanding {len(y_train)} data training.")
+                f"tapi itu terlalu besar dibanding {len(y_train)} data training.")
             print(f"      Membatasi jumlah komponen PCA menjadi {n_components_cap} untuk mengurangi risiko overfitting.")
         pca = PCA(n_components=n_components_cap, random_state=RANDOM_STATE)
         X_train_scaled = pca.fit_transform(X_train_scaled)
         X_test_scaled = pca.transform(X_test_scaled)
         print(f"  Dimensi Fitur Menyusut menjadi: {X_train_scaled.shape[1]} "
-              f"(variance explained: {pca.explained_variance_ratio_.sum()*100:.1f}%)")
+            f"(variance explained: {pca.explained_variance_ratio_.sum()*100:.1f}%)")
 
     print("\n[4/6] Melatih Model Klasifikasi Klasik (SVM) ...")
     t2 = time.time()
