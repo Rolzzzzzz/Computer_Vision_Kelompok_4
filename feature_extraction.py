@@ -3,16 +3,6 @@ import numpy as np
 from skimage.feature import hog, local_binary_pattern
 
 def extract_hog(gray: np.ndarray) -> np.ndarray:
-    # PERBAIKAN: pixels_per_cell diperbesar dari (8,8) -> (16,16).
-    # Dengan (8,8) pada gambar 128x128, HOG menghasilkan 8100 dimensi fitur —
-    # jauh lebih besar dari jumlah gambar training yang biasanya tersedia
-    # (curse of dimensionality). Ini membuat SVM (kernel RBF) "menghafal"
-    # support vector training, lalu untuk SEMUA gambar baru (termasuk kartu
-    # asli/palsu yang difoto sendiri) nilai kernel-nya runtuh ke ~0 sehingga
-    # decision_function selalu balik ke nilai bias/intercept saja — itulah
-    # sebabnya prediksi selalu sama (REAL, confidence sama) untuk semua input.
-    # (16,16) menurunkan dimensi HOG ke ~1764, jauh lebih sehat untuk dataset
-    # berukuran kecil-menengah dan SVM tetap bisa belajar pola nyata.
     features = hog(
         gray,
         orientations=9,
