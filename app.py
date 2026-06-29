@@ -72,7 +72,7 @@ model, pipeline, MODEL_LOADED, MODEL_OK = init_model()
 
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/9/98/International_Pok%C3%A9mon_logo.svg", width=180)
-    st.markdown("### ⚙️ Control Panel")
+    st.markdown("⚙️ Control Panel")
     st.write("Select image input method:")
     input_mode = st.radio("Image Source:", ("📂 Upload File", "📸 Webcam"), label_visibility="collapsed")
     st.markdown("---")
@@ -94,7 +94,7 @@ st.markdown('<p class="sub-title">AI-Powered Pokémon Card Authenticator & Grade
 
 img_file_buffers = []
 
-if input_mode == "📂 Upload File":
+if input_mode == "📂 Upload File/Image":
     uploaded_files = st.file_uploader(
         "Drag & drop up to 10 Pokémon card images here",
         type=["jpg", "jpeg", "png"],
