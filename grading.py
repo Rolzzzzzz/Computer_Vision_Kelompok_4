@@ -8,7 +8,6 @@ GRADES = {
     "Poor":      (0,  44),
 }
 
-
 def score_to_grade(score: float) -> str:
     for grade, (lo, hi) in GRADES.items():
         if lo <= score <= hi:
