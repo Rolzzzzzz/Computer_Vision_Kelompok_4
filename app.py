@@ -72,22 +72,22 @@ model, pipeline, MODEL_LOADED, MODEL_OK = init_model()
 
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/9/98/International_Pok%C3%A9mon_logo.svg", width=180)
-    st.markdown("### ⚙️ Panel Kontrol")
-    st.write("Pilih metode input gambar:")
-    input_mode = st.radio("Sumber Gambar:", ("📂 Upload File", "📸 Webcam"), label_visibility="collapsed")
+    st.markdown("### ⚙️ Control Panel")
+    st.write("Select image input method:")
+    input_mode = st.radio("Image Source:", ("📂 Upload File", "📸 Webcam"), label_visibility="collapsed")
     st.markdown("---")
 
     if not MODEL_LOADED:
-        st.error("🚨 Model (.pkl) tidak ditemukan!")
-        st.caption("Jalankan `train.py` terlebih dahulu.")
+        st.error("🚨 Model (.pkl) not found!")
+        st.caption("Please run `train.py` first.")
     elif not MODEL_OK:
-        st.warning("⚠️ Model SVM terdeteksi tidak berfungsi normal (kemungkinan sklearn version mismatch).")
-        st.info("🔬 Sistem beralih ke **Visual Analyzer** sebagai pengganti.")
-        st.caption("Untuk performa terbaik, retrain model dengan `train.py`.")
+        st.warning("⚠️ SVM model anomaly detected (possible sklearn version mismatch).")
+        st.info("🔬 System switching to **Visual Analyzer** as fallback.")
+        st.caption("For best performance, retrain the model using `train.py`.")
     else:
-        st.success("✅ Sistem Autentikasi SVM Siap")
+        st.success("✅ SVM Authentication System Ready")
 
-    st.caption("© 2026 PokéScan by Kelompok 4")
+    st.caption("© 2026 PokéScan by Group 4")
 
 st.markdown('<p class="main-title">⚡ PokéScan</p>', unsafe_allow_html=True)
 st.markdown('<p class="sub-title">AI-Powered Pokémon Card Authenticator & Grader</p>', unsafe_allow_html=True)
@@ -96,18 +96,18 @@ img_file_buffers = []
 
 if input_mode == "📂 Upload File":
     uploaded_files = st.file_uploader(
-        "Seret & lepas hingga 10 gambar kartu Pokémon di sini",
+        "Drag & drop up to 10 Pokémon card images here",
         type=["jpg", "jpeg", "png"],
         accept_multiple_files=True
     )
     if uploaded_files:
         if len(uploaded_files) > 10:
-            st.warning("⚠️ Hanya 10 file pertama yang akan diproses.")
+            st.warning("⚠️ Only the first 10 files will be processed.")
             img_file_buffers = uploaded_files[:10]
         else:
             img_file_buffers = uploaded_files
 else:
-    webcam_file = st.camera_input("Posisikan kartu secara simetris di depan kamera")
+    webcam_file = st.camera_input("Position the card symmetrically in front of the camera")
     if webcam_file is not None:
         img_file_buffers = [webcam_file]
 
@@ -116,7 +116,7 @@ if img_file_buffers:
     col_img, col_space, col_res = st.columns([1, 0.08, 1.2])
 
     with col_img:
-        st.markdown(f"#### 🖼️ Pratinjau Gambar ({len(img_file_buffers)} File)")
+        st.markdown(f"#### 🖼️ Image Preview ({len(img_file_buffers)} Files)")
         if len(img_file_buffers) > 1:
             gal_cols = st.columns(3)
             for idx, buf in enumerate(img_file_buffers):
@@ -126,12 +126,12 @@ if img_file_buffers:
             st.image(Image.open(img_file_buffers[0]), caption=img_file_buffers[0].name, use_container_width=True)
 
     with col_res:
-        st.markdown("#### 📊 Panel Hasil Analisis")
-        scan_clicked = st.button("🔍 SCAN SEMUA KARTU SEKARANG", type="primary")
+        st.markdown("#### 📊 Analysis Results Panel")
+        scan_clicked = st.button("🔍 SCAN ALL CARDS NOW", type="primary")
 
         if scan_clicked:
             tmp_paths = []
-            with st.spinner(f'Menganalisis {len(img_file_buffers)} gambar...'):
+            with st.spinner(f'Analyzing {len(img_file_buffers)} images...'):
                 for idx, file_buf in enumerate(img_file_buffers):
                     image   = Image.open(file_buf).convert("RGB")
                     img_bgr = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
@@ -142,20 +142,18 @@ if img_file_buffers:
                     try:
                         img_color, img_gray = preprocess_image(tmp_path)
 
-                        with st.expander(f"📋 Hasil Kartu #{idx+1} — {file_buf.name}", expanded=True):
+                        with st.expander(f"📋 Card Result #{idx+1} — {file_buf.name}", expanded=True):
                             if img_color is None:
-                                st.error("Gagal memproses gambar.")
+                                st.error("Failed to process image.")
                                 continue
 
                             use_visual = (not MODEL_LOADED) or (not MODEL_OK)
 
-                            # Jalankan visual analyzer DULU sebagai filter awal
                             auth = analyze_authenticity(img_bgr)
                             visual_score = auth["score_real"]
                             mirror_sus   = auth.get("mirror_suspicion", 0.0)
                             solid_sus    = auth.get("solid_suspicion", 0.0)
 
-                            # Jika visual sangat yakin FAKE, langsung override tanpa SVM
                             hard_fake = (mirror_sus >= 50.0) or (solid_sus >= 60.0)
 
                             if use_visual or hard_fake:
@@ -190,7 +188,7 @@ if img_file_buffers:
                                 hybrid_override = False
                                 if svm_pred == 0 and visual_score < 40.0:
                                     hybrid_override = True
-                                    override_reason = f"SVM=REAL tapi visual rendah ({visual_score:.0f}/100)"
+                                    override_reason = f"SVM=REAL but visual score is low ({visual_score:.0f}/100)"
 
                                 if hybrid_override:
                                     prediction  = 1
@@ -210,25 +208,25 @@ if img_file_buffers:
 
                             grade_result = grade_card(img_bgr)
 
-                            st.markdown(f"<p class='section-header'>🔐 Autentikasi Kartu <span style='font-weight:400;font-size:0.8rem;opacity:0.6;'>({method_note})</span></p>", unsafe_allow_html=True)
+                            st.markdown(f"<p class='section-header'>🔐 Card Authentication <span style='font-weight:400;font-size:0.8rem;opacity:0.6;'>({method_note})</span></p>", unsafe_allow_html=True)
 
                             if label == "REAL":
                                 st.markdown(
                                     f"""<div style="background:rgba(46,204,113,0.15);border:2px solid #2ecc71;padding:12px;border-radius:8px;text-align:center;margin-bottom:10px;">
-                                        <h3 style="color:#27ae60;margin:0;font-size:1.3rem;">✅ KARTU ASLI (REAL)</h3>
+                                        <h3 style="color:#27ae60;margin:0;font-size:1.3rem;">✅ AUTHENTIC CARD (REAL)</h3>
                                         <p style="margin:4px 0 0 0;font-size:0.85rem;opacity:0.85;">Confidence: {confidence:.1f}%</p>
                                     </div>""", unsafe_allow_html=True)
                             else:
                                 st.markdown(
                                     f"""<div style="background:rgba(231,76,60,0.15);border:2px solid #e74c3c;padding:12px;border-radius:8px;text-align:center;margin-bottom:10px;">
-                                        <h3 style="color:#c0392b;margin:0;font-size:1.3rem;">🚨 KARTU PALSU (FAKE)</h3>
+                                        <h3 style="color:#c0392b;margin:0;font-size:1.3rem;">🚨 COUNTERFEIT CARD (FAKE)</h3>
                                         <p style="margin:4px 0 0 0;font-size:0.85rem;opacity:0.85;">Confidence: {confidence:.1f}%</p>
                                     </div>""", unsafe_allow_html=True)
 
-                            with st.expander("📈 Detail Probabilitas / Skor", expanded=False):
+                            with st.expander("📈 Probability / Score Details", expanded=False):
                                 if use_visual:
                                     auth_details = auth["details"]
-                                    st.caption(f"Skor Visual REAL: **{auth['score_real']:.1f}/100** (threshold ≥ {auth['threshold']})")
+                                    st.caption(f"Visual Score REAL: **{auth['score_real']:.1f}/100** (threshold ≥ {auth['threshold']})")
                                     st.progress(min(1.0, auth['score_real'] / 100.0))
 
                                     d1, d2 = st.columns(2)
@@ -252,14 +250,14 @@ if img_file_buffers:
                                     st.write(f"P(REAL): **{proba_real*100:.1f}%**"); st.progress(proba_real)
                                     st.write(f"P(FAKE): **{proba_fake*100:.1f}%**"); st.progress(proba_fake)
                                     st.markdown("---")
-                                    st.caption("🔬 Visual Analyzer Cross-Check (selalu dijalankan)")
+                                    st.caption("🔬 Visual Analyzer Cross-Check (always running)")
                                     auth_details = auth["details"]
-                                    st.caption(f"Skor Visual REAL: **{auth['score_real']:.1f}/100** | Mirror suspicion: **{auth.get('mirror_suspicion',0):.0f}** | Solid suspicion: **{auth.get('solid_suspicion',0):.0f}**")
+                                    st.caption(f"Visual Score REAL: **{auth['score_real']:.1f}/100** | Mirror suspicion: **{auth.get('mirror_suspicion',0):.0f}** | Solid suspicion: **{auth.get('solid_suspicion',0):.0f}**")
                                     if hybrid_override:
-                                        st.warning(f"⚠️ **Hybrid Override aktif:** {override_reason}")
+                                        st.warning(f"⚠️ **Hybrid Override active:** {override_reason}")
 
                             st.markdown("---")
-                            st.markdown("<p class='section-header'>🌟 Grading Kondisi Fisik Kartu</p>", unsafe_allow_html=True)
+                            st.markdown("<p class='section-header'>🌟 Card Physical Condition Grading</p>", unsafe_allow_html=True)
 
                             grade_label = grade_result["grade"]
                             grade_colors = {
@@ -279,32 +277,32 @@ if img_file_buffers:
                             centering_score = grade_result["centering"]["score"]
                             centering_note  = grade_result["centering"].get("note", "ok")
                             c_delta = None
-                            if centering_note == "card_fills_frame":   c_delta = "Frame penuh (estimasi)"
-                            elif centering_note == "no_card_detected": c_delta = "Kartu tidak terdeteksi"
+                            if centering_note == "card_fills_frame":   c_delta = "Full frame (estimated)"
+                            elif centering_note == "no_card_detected": c_delta = "Card not detected"
 
                             m1.metric("Centering (40%)", f"{centering_score:.1f}",
                                     delta=c_delta, delta_color="off" if c_delta else "normal",
-                                    help="Simetri border kiri-kanan dan atas-bawah.")
+                                    help="Left-right and top-bottom border symmetry.")
                             m2.metric("Corners (35%)", f"{grade_result['corners']['score']:.1f}",
-                                    help="Kondisi sudut kartu.")
+                                    help="Card corner condition.")
                             m3.metric("Edge Wear (25%)", f"{grade_result['edge_wear']['score']:.1f}",
-                                    help="Kondisi tepi kartu.")
+                                    help="Card edge condition.")
 
-                            with st.expander("📐 Detail Centering Border", expanded=False):
+                            with st.expander("📐 Centering Border Details", expanded=False):
                                 c1, c2 = st.columns(2)
                                 c1.metric("H-Symmetry", f"{grade_result['centering']['h_symmetry']:.1f}%")
                                 c2.metric("V-Symmetry", f"{grade_result['centering']['v_symmetry']:.1f}%")
                                 if centering_note != "ok":
-                                    st.caption(f"ℹ️ {centering_note.replace('_',' ')} — skor centering menggunakan estimasi 75.0.")
+                                    st.caption(f"ℹ️ {centering_note.replace('_',' ')} — centering score using estimation 75.0.")
                                 else:
                                     st.caption(
-                                        f"Border: Kiri {grade_result['centering']['left_border']}px | "
-                                        f"Kanan {grade_result['centering']['right_border']}px | "
-                                        f"Atas {grade_result['centering']['top_border']}px | "
-                                        f"Bawah {grade_result['centering']['bottom_border']}px"
+                                        f"Border: Left {grade_result['centering']['left_border']}px | "
+                                        f"Right {grade_result['centering']['right_border']}px | "
+                                        f"Top {grade_result['centering']['top_border']}px | "
+                                        f"Bottom {grade_result['centering']['bottom_border']}px"
                                     )
 
-                            with st.expander("🔲 Detail Kondisi Corners", expanded=False):
+                            with st.expander("🔲 Corners Condition Details", expanded=False):
                                 r1, r2 = st.columns(2)
                                 r1.metric("↖ Top-Left",    f"{grade_result['corners']['top_left']:.1f}")
                                 r2.metric("↗ Top-Right",   f"{grade_result['corners']['top_right']:.1f}")
@@ -312,7 +310,7 @@ if img_file_buffers:
                                 r3.metric("↙ Bottom-Left", f"{grade_result['corners']['bottom_left']:.1f}")
                                 r4.metric("↘ Bottom-Right",f"{grade_result['corners']['bottom_right']:.1f}")
 
-                            with st.expander("📏 Detail Edge Wear", expanded=False):
+                            with st.expander("📏 Edge Wear Details", expanded=False):
                                 e1, e2 = st.columns(2)
                                 e1.metric("⬆ Top",    f"{grade_result['edge_wear']['top']:.1f}")
                                 e2.metric("⬇ Bottom", f"{grade_result['edge_wear']['bottom']:.1f}")
@@ -321,21 +319,21 @@ if img_file_buffers:
                                 e4.metric("➡ Right",  f"{grade_result['edge_wear']['right']:.1f}")
 
                     except Exception as e:
-                        st.error(f"Error pada File #{idx+1}: {e}")
+                        st.error(f"Error on File #{idx+1}: {e}")
                         import traceback; st.code(traceback.format_exc())
 
             for t in tmp_paths:
                 if os.path.exists(t): os.remove(t)
-            st.toast("Seluruh gambar selesai dianalisis!", icon="🎉")
+            st.toast("All images successfully analyzed!", icon="🎉")
 
         else:
             st.markdown("""
                 <div style="text-align:center;padding:50px 20px;border:2px dashed rgba(128,128,128,0.3);border-radius:12px;background:rgba(128,128,128,0.05);">
                     <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Pok%C3%A9_Ball_icon.svg"
                         width="110" style="opacity:0.35;margin-bottom:15px;"/>
-                    <h5 style="font-weight:600;margin-bottom:5px;">Sistem PokéScan Siap</h5>
+                    <h5 style="font-weight:600;margin-bottom:5px;">PokéScan System Ready</h5>
                     <p style="font-size:0.85rem;max-width:320px;margin:0 auto;opacity:0.7;">
-                        Tekan tombol di atas untuk memulai analisis kartu.
+                        Press the button above to start card analysis.
                     </p>
                 </div>
             """, unsafe_allow_html=True)
@@ -346,9 +344,9 @@ else:
         <div style="text-align:center;padding:70px 20px;">
             <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Pok%C3%A9_Ball_icon.svg"
                 width="130" style="opacity:0.15;margin-bottom:20px;"/>
-            <h4 style="font-weight:500;opacity:0.8;">Menunggu Input Gambar Kartu</h4>
+            <h4 style="font-weight:500;opacity:0.8;">Waiting for Card Image Input</h4>
             <p style="font-size:0.9rem;opacity:0.7;">
-                Gunakan menu <b>Sidebar kiri</b> untuk memilih upload file atau kamera.
+                Use the <b>Left Sidebar</b> menu to select file upload or camera.
             </p>
         </div>
     """, unsafe_allow_html=True)
