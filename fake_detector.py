@@ -97,27 +97,29 @@ def _border_regularity(img_bgr: np.ndarray) -> float:
     return float(score)
 
 def _detect_mirrored_text(img_bgr: np.ndarray) -> float:
-    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
-
-    flipped_h = cv2.flip(gray, 1)
-    diff_h = cv2.absdiff(gray, flipped_h).astype(np.float32)
-    sym_h = 1.0 - (diff_h.mean() / 128.0)  # 1.0 = perfect mirror
-
-    flipped_v = cv2.flip(gray, 0)
-    diff_v = cv2.absdiff(gray, flipped_v).astype(np.float32)
-    sym_v = 1.0 - (diff_v.mean() / 128.0)
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
-    h_ch = hsv[:, :, 0]
-    purple_mask = ((h_ch >= 120) & (h_ch <= 160)).astype(np.float32)
-    blue_mask   = ((h_ch >= 90)  & (h_ch <= 130)).astype(np.float32)
-    purple_blue_ratio = (purple_mask.sum() + blue_mask.sum()) / h_ch.size
-    mirror_suspicion = 0.0
-    if sym_h > 0.75 and purple_blue_ratio > 0.30:
-        mirror_suspicion = min(100.0, (sym_h - 0.75) / 0.25 * 80.0)
-    elif sym_v > 0.75 and purple_blue_ratio > 0.25:
-        mirror_suspicion = min(100.0, (sym_v - 0.75) / 0.25 * 60.0)
+    h = img_bgr.shape[0]
 
-    return float(mirror_suspicion)
+    top_region = hsv[:h // 4, :]
+    bot_region = hsv[3 * h // 4:, :]
+
+    def _yellow_text_pct(region: np.ndarray) -> float:
+        mask = (
+            (region[:, :, 0] >= 18) & (region[:, :, 0] <= 32) &
+            (region[:, :, 1] > 120) & (region[:, :, 2] > 120)
+        )
+        return float(mask.sum()) / (region.shape[0] * region.shape[1] + 1e-5)
+
+    yp_top = _yellow_text_pct(top_region)
+    yp_bot = _yellow_text_pct(bot_region)
+
+    if yp_top > 0.01 and yp_bot > 0.01:
+        balance = min(yp_top, yp_bot) / (max(yp_top, yp_bot) + 1e-5)
+        suspicion = min(100.0, balance * 100.0 + 40.0)
+    else:
+        suspicion = 0.0
+
+    return float(suspicion)
 
 
 def _detect_solid_or_uniform_color(img_bgr: np.ndarray) -> float:
