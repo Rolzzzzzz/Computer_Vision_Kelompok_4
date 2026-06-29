@@ -12,7 +12,6 @@ from preprocessing import preprocess_image
 from feature_extraction import extract_all_features
 from grading import grade_card
 from utils import load_model
-from fake_detector import analyze_authenticity
 
 st.set_page_config(page_title="PokéScan | Card Authenticator", page_icon="⚡", layout="wide")
 
@@ -47,29 +46,11 @@ def init_model():
     MODEL_DIR = os.path.join(BASE_DIR, "models")
     try:
         model, pipeline = load_model(MODEL_DIR)
-        scaler = pipeline["scaler"]
-        pca    = pipeline.get("pca")
-        rng = np.random.RandomState(42)
-        n_features = scaler.n_features_in_
-        means = scaler.mean_
-        scales = scaler.scale_
-        probe_samples = []
-        for _ in range(10):
-            noise_scale = rng.uniform(0.5, 3.0)
-            probe_samples.append(means + rng.normal(size=n_features) * scales * noise_scale)
-        X_probe = np.array(probe_samples, dtype=np.float64)
-
-        X_sc = scaler.transform(X_probe)
-        if pca is not None:
-            X_sc = pca.transform(X_sc)
-        df = model.decision_function(X_sc)
-
-        model_ok = bool(np.std(df) > 0.05)
-        return model, pipeline, True, model_ok
+        return model, pipeline, True
     except Exception:
-        return None, None, False, False
+        return None, None, False
 
-model, pipeline, MODEL_LOADED, MODEL_OK = init_model()
+model, pipeline, MODEL_LOADED = init_model()
 
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/9/98/International_Pok%C3%A9mon_logo.svg", width=180)
@@ -81,10 +62,6 @@ with st.sidebar:
     if not MODEL_LOADED:
         st.error("🚨 Model (.pkl) tidak ditemukan!")
         st.caption("Jalankan `train.py` terlebih dahulu.")
-    elif not MODEL_OK:
-        st.warning("⚠️ Model SVM terdeteksi tidak berfungsi normal (kemungkinan sklearn version mismatch).")
-        st.info("🔬 Sistem beralih ke **Visual Analyzer** sebagai pengganti.")
-        st.caption("Untuk performa terbaik, retrain model dengan `train.py`.")
     else:
         st.success("✅ Sistem Autentikasi SVM Siap")
 
@@ -148,63 +125,23 @@ if img_file_buffers:
                                 st.error("Gagal memproses gambar.")
                                 continue
 
-                            use_visual = (not MODEL_LOADED) or (not MODEL_OK)
-
-                            auth = analyze_authenticity(img_bgr)
-
-                            if use_visual:
-                                prediction  = auth["prediction"]
-                                confidence  = auth["confidence"] * 100
-                                proba_real  = auth["score_real"] / 100.0
-                                proba_fake  = 1.0 - proba_real
-                                method_note = "Visual Analyzer"
-                                hybrid_override = False
-                            else:
-                                features = extract_all_features(img_color, img_gray)
-                                scaler   = pipeline["scaler"]
-                                pca      = pipeline.get("pca")
-                                X        = features.reshape(1, -1)
-                                X_scaled = scaler.transform(X)
-                                if pca is not None:
-                                    X_scaled = pca.transform(X_scaled)
-                                svm_pred    = int(model.predict(X_scaled)[0])
-                                proba       = model.predict_proba(X_scaled)[0]
-                                svm_conf    = float(proba[svm_pred]) * 100
-                                proba_real_svm = float(proba[0])
-                                proba_fake_svm = float(proba[1])
-                                visual_score = auth["score_real"]
-                                mirror_sus   = auth.get("mirror_suspicion", 0.0)
-                                solid_sus    = auth.get("solid_suspicion", 0.0)
-
-                                hybrid_override = False
-                                if svm_pred == 0:
-                                    if solid_sus >= 60.0:
-                                        hybrid_override = True
-                                        override_reason = f"Solid/uniform color terdeteksi (skor={solid_sus:.0f})"
-                                    elif mirror_sus >= 50.0:
-
-                                        hybrid_override = True
-                                        override_reason = f"Teks terbalik/mirrored terdeteksi (skor={mirror_sus:.0f})"
-                                    elif visual_score < 35.0 and svm_conf < 70.0:
-                                        hybrid_override = True
-                                        override_reason = f"SVM tidak yakin ({svm_conf:.0f}%) + skor visual rendah ({visual_score:.0f}/100)"
-
-                                if hybrid_override:
-                                    prediction  = 1                                    
-                                    vis_conf_fake = (100.0 - visual_score) / 100.0
-                                    confidence = round((vis_conf_fake + proba_fake_svm) / 2 * 100, 1)
-                                    proba_real = proba_real_svm
-                                    proba_fake = proba_fake_svm
-                                    method_note = "SVM + Visual (Hybrid Override)"
-                                else:
-                                    prediction  = svm_pred
-                                    confidence  = svm_conf
-                                    proba_real  = proba_real_svm
-                                    proba_fake  = proba_fake_svm
-                                    method_note = "SVM Model"
+                            features = extract_all_features(img_color, img_gray)
+                            scaler   = pipeline["scaler"]
+                            pca      = pipeline.get("pca")
+                            X        = features.reshape(1, -1)
+                            X_scaled = scaler.transform(X)
+                            if pca is not None:
+                                X_scaled = pca.transform(X_scaled)
+                                
+                            prediction = int(model.predict(X_scaled)[0])
+                            proba      = model.predict_proba(X_scaled)[0]
+                            confidence = float(proba[prediction]) * 100
+                            
+                            proba_real = float(proba[0])
+                            proba_fake = float(proba[1])
+                            method_note = "SVM Model"
 
                             label = CLASS_NAMES[prediction]
-
                             grade_result = grade_card(img_bgr)
 
                             st.markdown(f"<p class='section-header'>🔐 Autentikasi Kartu <span style='font-weight:400;font-size:0.8rem;opacity:0.6;'>({method_note})</span></p>", unsafe_allow_html=True)
@@ -223,37 +160,13 @@ if img_file_buffers:
                                     </div>""", unsafe_allow_html=True)
 
                             with st.expander("📈 Detail Probabilitas / Skor", expanded=False):
-                                if use_visual:
-                                    auth_details = auth["details"]
-                                    st.caption(f"Skor Visual REAL: **{auth['score_real']:.1f}/100** (threshold ≥ {auth['threshold']})")
-                                    st.progress(min(1.0, auth['score_real'] / 100.0))
-
-                                    d1, d2 = st.columns(2)
-                                    d1.metric("Sharpness",    f"{auth_details['sharpness']:.1f}")
-                                    d2.metric("Print Quality", f"{auth_details['print']:.1f}")
-                                    d3, d4 = st.columns(2)
-                                    d3.metric("Text Quality",  f"{auth_details['text']:.1f}")
-                                    d4.metric("Color",         f"{auth_details['color']:.1f}")
-                                    d5, d6 = st.columns(2)
-                                    d5.metric("Noise",         f"{auth_details['noise']:.1f}")
-                                    d6.metric("Texture (LBP)", f"{auth_details['lbp']:.1f}")
-                                    d7, d8 = st.columns(2)
-                                    d7.metric("Halftone",      f"{auth_details['halftone']:.1f}")
-                                    d8.metric("Border",        f"{auth_details['border']:.1f}")
-                                    st.caption(f"🔬 Raw: sharpness_lap={auth_details['sharpness_raw']:.1f}, "
-                                            f"sat_mean={auth_details['sat_mean']:.1f}, "
-                                            f"noise_std={auth_details['noise_std']:.2f}, "
-                                            f"lbp_entropy={auth_details['lbp_entropy']:.3f}, "
-                                            f"halftone_energy={auth_details['halftone_energy']:.4f}")
-                                else:
-                                    st.write(f"P(REAL): **{proba_real*100:.1f}%**"); st.progress(proba_real)
-                                    st.write(f"P(FAKE): **{proba_fake*100:.1f}%**"); st.progress(proba_fake)
-                                    st.markdown("---")
-                                    st.caption("🔬 Visual Analyzer Cross-Check (selalu dijalankan)")
-                                    auth_details = auth["details"]
-                                    st.caption(f"Skor Visual REAL: **{auth['score_real']:.1f}/100** | Mirror suspicion: **{auth.get('mirror_suspicion',0):.0f}** | Solid suspicion: **{auth.get('solid_suspicion',0):.0f}**")
-                                    if hybrid_override:
-                                        st.warning(f"⚠️ **Hybrid Override aktif:** {override_reason}")
+                                st.write(f"P(REAL): **{proba_real*100:.1f}%**")
+                                st.progress(proba_real)
+                                st.write(f"P(FAKE): **{proba_fake*100:.1f}%**")
+                                st.progress(proba_fake)
+                                st.markdown("---")
+                                st.caption("🔬 Ekstraksi Fitur Global (HOG + LBP + Color Histogram + ORB)")
+                                st.caption(f"Total dimensi vektor input setelah normalisasi: **{features.shape[0]}**")
 
                             st.markdown("---")
                             st.markdown("<p class='section-header'>🌟 Grading Kondisi Fisik Kartu</p>", unsafe_allow_html=True)
