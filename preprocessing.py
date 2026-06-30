@@ -1,7 +1,7 @@
 import os
+import csv
 import cv2
 import numpy as np
-import csv
 
 TARGET_SIZE = (128, 128)
 SUPPORTED_EXT = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
@@ -27,6 +27,7 @@ def equalize_histogram(gray: np.ndarray) -> np.ndarray:
 
 def preprocess_image(path: str) -> tuple[np.ndarray | None, np.ndarray | None]:
     img = load_image(path)
+
     if img is None:
         return None, None
 
@@ -45,7 +46,7 @@ def load_dataset_from_csv(img_dir: str, csv_path: str) -> tuple[list, list, list
     labels = []
 
     if not os.path.exists(csv_path):
-        print(f"[ERROR] File CSV tidak ditemukan: {csv_path}")
+        print(f"ERROR! File CSV tidak ditemukan: {csv_path}")
         return paths, color_images, gray_images, labels
 
     csv_name = os.path.basename(csv_path)
@@ -53,6 +54,7 @@ def load_dataset_from_csv(img_dir: str, csv_path: str) -> tuple[list, list, list
     
     with open(csv_path, mode='r') as f:
         reader = csv.DictReader(f)
+
         for row in reader:
             img_id = row['id']
             label = int(row['label'])
@@ -64,7 +66,7 @@ def load_dataset_from_csv(img_dir: str, csv_path: str) -> tuple[list, list, list
                 fpath = os.path.join(img_dir, f"{int(img_id)}.jpg")
 
             if not os.path.exists(fpath):
-                print(f"[WARNING] Gambar tidak ditemukan di disk: {fpath}")
+                print(f"WARNING! Gambar tidak ditemukan di disk: {fpath}")
                 continue
 
             img_color, img_gray = preprocess_image(fpath)
@@ -76,5 +78,5 @@ def load_dataset_from_csv(img_dir: str, csv_path: str) -> tuple[list, list, list
             gray_images.append(img_gray)
             labels.append(label)
 
-    print(f"  [✓] Berhasil memuat {len(labels)} gambar dari {csv_name}.")
+    print(f"  Berhasil memuat {len(labels)} gambar dari {csv_name}.")
     return paths, color_images, gray_images, labels
