@@ -69,7 +69,6 @@ def extract_all_features(img_color: np.ndarray, img_gray: np.ndarray) -> np.ndar
     feature_vector = np.concatenate([hog_feat, lbp_feat, color_feat, orb_feat])
     return feature_vector
 
-
 def extract_features_batch(color_images: list, gray_images: list,
                         verbose: bool = True) -> np.ndarray:
     all_features = []
